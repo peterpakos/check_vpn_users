@@ -133,7 +133,7 @@ main() {
   vpn_users=$(get_vpn_users "$INDEX_FILE")
 
   if [[ -s "$EXCLUDE_FILE" ]]; then
-    info "Loading excluded users ${EXCLUDE_FILE}..."
+    info "Loading excluded users from ${EXCLUDE_FILE}..."
   fi
   excluded_users=$(get_excluded_users "$EXCLUDE_FILE")
 
