@@ -17,10 +17,10 @@ readonly WHITE="$(tput setaf 7; tput bold)"
 readonly GREY="$(tput bold)"
 readonly RESET=$(tput sgr0)
 readonly BASE_DN="cn=users,cn=accounts,dc=ipa,dc=wandisco,dc=com"
-FAILED_ONLY=0
+ALL=0
 
 get_opts() {
-  while getopts ":vhf" opt; do
+  while getopts ":vha" opt; do
     case $opt in
       v)
         display_version
@@ -30,8 +30,8 @@ get_opts() {
         display_help
         exit 0
         ;;
-      f)
-        FAILED_ONLY=1
+      a)
+        ALL=1
         ;;
       :)
         printf "Option -${OPTARG} requires an argument\n"
@@ -56,7 +56,7 @@ Usage: ${APP_NAME} [OPTIONS]
 AVAILABLE OPTIONS:
 -h  Print this help summary page
 -v  Print version number
--f  Show only users who don't exist in LDAP
+-a  Show all users (including those who exist in LDAP)
 HELP
 }
 
@@ -123,7 +123,9 @@ main() {
 
   info "Extracting data from ${INDEX_FILE}..."
   vpn_users=$(get_vpn_users "$INDEX_FILE")
-  info "Reading excluded users list from ${EXCLUDE_FILE}..."
+  if [[ -s "$EXCLUDE_FILE" ]]; then
+    info "Reading excluded users list from ${EXCLUDE_FILE}..."
+  fi
   excluded_users=$(get_excluded_users "$EXCLUDE_FILE")
   info "Active VPN users: $(grep -cv '^$' <<<"$vpn_users"), Excluded users: $(grep -cv '^$' <<<"$excluded_users")"
   info "Checking if users exist in LDAP..."
@@ -132,7 +134,7 @@ main() {
       continue
     fi
     if check_uid "$user"; then
-      if [[ $FAILED_ONLY -ne 1 ]]; then
+      if [[ $ALL -eq 1 ]]; then
         ok "$user"
       fi
     else
@@ -141,16 +143,16 @@ main() {
     fi
   done
   if [[ $err -eq 0 ]]; then
-    ok "All active VPN users exist in LDAP"
+    ok "All active OpenVPN users exist in LDAP"
   else
     if [[ err -eq 1 ]]; then
       s=""
-      esn="es"
+      es="es"
     else
       s="s"
-      esn="n"
+      es=""
     fi
-    info "${err} VPN user${s} do${esn}'t exist in LDAP"
+    info "${err} active OpenVPN user${s} do${es} not exist in LDAP"
   fi
 
   exit 0
