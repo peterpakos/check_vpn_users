@@ -9,7 +9,8 @@ set -euo pipefail
 readonly APP_VER="16.7.20"
 readonly APP_NAME="$(basename "$0")"
 readonly DIR="$(cd "$(dirname "$0")" && pwd)"
-readonly INDEX_FILE="${DIR}/index.txt"
+readonly INDEX_FILE="/etc/openvpn/keys/index.txt"
+readonly EXCLUDE_FILE="${DIR}/${APP_NAME}.exclude"
 readonly RED="$(tput setaf 1; tput bold)"
 readonly GREEN="$(tput setaf 2; tput bold)"
 readonly WHITE="$(tput setaf 7; tput bold)"
@@ -105,6 +106,16 @@ check_uid() {
   fi
 }
 
+get_excluded_users() {
+  local exclude_file="$1"
+
+  if [[ -s "$exclude_file" ]]; then
+    cat "$exclude_file" | grep -v '^$'
+  fi
+
+  return 0
+}
+
 main() {
   local vpn_users= err=0
 
@@ -112,9 +123,14 @@ main() {
 
   info "Extracting data from ${INDEX_FILE}..."
   vpn_users=$(get_vpn_users "$INDEX_FILE")
-  info "Active VPN users: $(grep -cv '^$' <<<"$vpn_users")"
+  info "Reading excluded users list from ${EXCLUDE_FILE}..."
+  excluded_users=$(get_excluded_users "$EXCLUDE_FILE")
+  info "Active VPN users: $(grep -cv '^$' <<<"$vpn_users"), Excluded users: $(grep -cv '^$' <<<"$excluded_users")"
   info "Checking if users exist in LDAP..."
   for user in $vpn_users; do
+    if grep $user <<<"$excluded_users" &>/dev/null; then
+      continue
+    fi
     if check_uid "$user"; then
       if [[ $FAILED_ONLY -ne 1 ]]; then
         ok "$user"
