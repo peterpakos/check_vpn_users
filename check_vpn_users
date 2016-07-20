@@ -37,7 +37,7 @@ get_opts() {
       q)
         QUIET=1
         ;;
- 
+
       :)
         printf "Option -${OPTARG} requires an argument\n"
         exit 1
@@ -129,13 +129,16 @@ main() {
 
   get_opts "$@"
 
-  info "Extracting data from ${INDEX_FILE}..."
+  info "Loading user list from ${INDEX_FILE}..."
   vpn_users=$(get_vpn_users "$INDEX_FILE")
+
   if [[ -s "$EXCLUDE_FILE" ]]; then
-    info "Reading excluded users list from ${EXCLUDE_FILE}..."
+    info "Loading excluded users ${EXCLUDE_FILE}..."
   fi
   excluded_users=$(get_excluded_users "$EXCLUDE_FILE")
+
   info "Active OpenVPN users: $(grep -cv '^$' <<<"$vpn_users"), Excluded users: $(grep -cv '^$' <<<"$excluded_users")"
+
   info "Checking if users exist in LDAP..."
   for user in $vpn_users; do
     if grep $user <<<"$excluded_users" &>/dev/null; then
@@ -150,6 +153,7 @@ main() {
       err=$((err + 1))
     fi
   done
+
   if [[ $err -eq 0 ]]; then
     ok "All active OpenVPN users exist in LDAP"
   else
