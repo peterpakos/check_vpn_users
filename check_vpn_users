@@ -1,0 +1,143 @@
+#!/bin/bash
+#
+# A tool to check if OpenVPN users exist in LDAP.
+#
+# Author: Peter Pakos <peter.pakos@wandisco.com>
+
+set -euo pipefail
+
+readonly APP_VER="16.7.20"
+readonly APP_NAME="$(basename "$0")"
+readonly DIR="$(cd "$(dirname "$0")" && pwd)"
+readonly INDEX_FILE="${DIR}/index.txt"
+readonly RED="$(tput setaf 1; tput bold)"
+readonly GREEN="$(tput setaf 2; tput bold)"
+readonly WHITE="$(tput setaf 7; tput bold)"
+readonly GREY="$(tput bold)"
+readonly RESET=$(tput sgr0)
+readonly BASE_DN="cn=users,cn=accounts,dc=ipa,dc=wandisco,dc=com"
+FAILED_ONLY=0
+
+get_opts() {
+  while getopts ":vhf" opt; do
+    case $opt in
+      v)
+        display_version
+        exit 0
+        ;;
+      h)
+        display_help
+        exit 0
+        ;;
+      f)
+        FAILED_ONLY=1
+        ;;
+      :)
+        printf "Option -${OPTARG} requires an argument\n"
+        exit 1
+        ;;
+      *)
+        printf "Invalid option -${OPTARG}\n"
+        exit 1
+        ;;
+    esac
+  done
+}
+
+display_version() {
+  printf "%s %s\n" "$APP_NAME" "$APP_VER"
+}
+
+display_help() {
+  display_version
+  cat <<HELP
+Usage: ${APP_NAME} [OPTIONS]
+AVAILABLE OPTIONS:
+-h  Print this help summary page
+-v  Print version number
+-f  Show only users who don't exist in LDAP
+HELP
+}
+
+info() {
+  printf "[ ${GREY}INFO${RESET} ] $1\n"
+}
+
+ok() {
+  printf "[  ${GREEN}OK${RESET}  ] $1\n"
+}
+
+fail() {
+  printf "[ ${RED}FAIL${RESET} ] $1\n"
+}
+
+title() {
+  printf "         ${WHITE}--== $1 ==--${RESET}\n"
+}
+
+get_vpn_users() {
+  local index_file="$1"
+
+  if [[ ! -r "$index_file" ]]; then
+    fail "Unable to open index file ${index_file}" >&2
+    exit 1
+  fi
+
+  awk -F '/' '/^V/ {if ($7 ~ "CN=") print $7}' "$index_file" | sed -e 's@CN=@@'
+
+  return 0
+}
+
+check_uid() {
+  local uid="$1" n=0
+
+  set +o pipefail
+  if ! n=$(ldapsearch -LLLx -b $BASE_DN uid=${uid} dn 2>/dev/null | grep '^dn' | wc -l); then
+    fail "Unable to connect to LDAP server" >&2
+    exit 1
+  fi
+  set -o pipefail
+
+  if [[ $n -eq 1 ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+main() {
+  local vpn_users= err=0
+
+  get_opts "$@"
+
+  info "Extracting data from ${INDEX_FILE}..."
+  vpn_users=$(get_vpn_users "$INDEX_FILE")
+  info "Active VPN users: $(grep -cv '^$' <<<"$vpn_users")"
+  info "Checking if users exist in LDAP..."
+  for user in $vpn_users; do
+    if check_uid "$user"; then
+      if [[ $FAILED_ONLY -ne 1 ]]; then
+        ok "$user"
+      fi
+    else
+      fail "$user"
+      err=$((err + 1))
+    fi
+  done
+  if [[ $err -eq 0 ]]; then
+    ok "All active VPN users exist in LDAP"
+  else
+    if [[ err -eq 1 ]]; then
+      s=""
+      esn="es"
+    else
+      s="s"
+      esn="n"
+    fi
+    info "${err} VPN user${s} do${esn}'t exist in LDAP"
+  fi
+
+  exit 0
+}
+
+main "$@"
