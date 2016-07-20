@@ -18,9 +18,10 @@ readonly GREY="$(tput bold)"
 readonly RESET=$(tput sgr0)
 readonly BASE_DN="cn=users,cn=accounts,dc=ipa,dc=wandisco,dc=com"
 ALL=0
+QUIET=0
 
 get_opts() {
-  while getopts ":vha" opt; do
+  while getopts ":vhaq" opt; do
     case $opt in
       v)
         display_version
@@ -33,6 +34,10 @@ get_opts() {
       a)
         ALL=1
         ;;
+      q)
+        QUIET=1
+        ;;
+ 
       :)
         printf "Option -${OPTARG} requires an argument\n"
         exit 1
@@ -56,12 +61,15 @@ Usage: ${APP_NAME} [OPTIONS]
 AVAILABLE OPTIONS:
 -h  Print this help summary page
 -v  Print version number
--a  Show all users (including those who exist in LDAP)
+-a  Show all users (default: existing only)
+-q  Quiet mode
 HELP
 }
 
 info() {
-  printf "[ ${GREY}INFO${RESET} ] $1\n"
+  if [[ $QUIET -eq 0 ]]; then
+    printf "[ ${GREY}INFO${RESET} ] $1\n"
+  fi
 }
 
 ok() {
