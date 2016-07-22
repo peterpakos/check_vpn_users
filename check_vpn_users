@@ -155,7 +155,7 @@ main() {
   done
 
   if [[ $err -eq 0 ]]; then
-    ok "All active OpenVPN users exist in LDAP"
+    info "All active OpenVPN users exist in LDAP"
   else
     if [[ err -eq 1 ]]; then
       s=""
